@@ -2,7 +2,7 @@
 
 use std::sync::OnceLock;
 
-use harfrust::{BufferClusterLevel, Direction, ShapeOptions, ShaperData, UnicodeBuffer, script};
+use harfrust::{BufferClusterLevel, Direction, FontRef as HarfFontRef, ShapeOptions, ShaperData, UnicodeBuffer, script};
 use skrifa::instance::{LocationRef, Size};
 use skrifa::raw::TableProvider;
 use skrifa::{FontRef, GlyphId, MetadataProvider};
@@ -40,10 +40,10 @@ impl ShapedScript {
     }
 }
 
-fn face(script: ShapedScript) -> Option<&'static (FontRef<'static>, ShaperData)> {
-    static FACE: OnceLock<Option<(FontRef<'static>, ShaperData)>> = OnceLock::new();
-    static HEBREW: OnceLock<Option<(FontRef<'static>, ShaperData)>> = OnceLock::new();
-    static THAI: OnceLock<Option<(FontRef<'static>, ShaperData)>> = OnceLock::new();
+fn face(script: ShapedScript) -> Option<&'static (FontRef<'static>, ShaperData, HarfFontRef<'static>)> {
+    static FACE: OnceLock<Option<(FontRef<'static>, ShaperData, HarfFontRef<'static>)>> = OnceLock::new();
+    static HEBREW: OnceLock<Option<(FontRef<'static>, ShaperData, HarfFontRef<'static>)>> = OnceLock::new();
+    static THAI: OnceLock<Option<(FontRef<'static>, ShaperData, HarfFontRef<'static>)>> = OnceLock::new();
     let cache = match script {
         ShapedScript::Arabic => &FACE,
         ShapedScript::Hebrew => &HEBREW,
@@ -51,16 +51,18 @@ fn face(script: ShapedScript) -> Option<&'static (FontRef<'static>, ShaperData)>
     };
     cache
         .get_or_init(|| {
-            let font = FontRef::new(script.font()?.bytes).ok()?;
-            let data = ShaperData::new(&font);
-            Some((font, data))
+            let bytes = script.font()?.bytes;
+            let font = FontRef::new(bytes).ok()?;
+            let harf_font = HarfFontRef::new(bytes).ok()?;
+            let data = ShaperData::new(&harf_font);
+            Some((font, data, harf_font))
         })
         .as_ref()
 }
 
 /// Whether the Arabic document face has a glyph for `c` (false without the face).
 pub fn arabic_has(c: char) -> bool {
-    face(ShapedScript::Arabic).is_some_and(|(font, _)| font.charmap().map(c).is_some())
+    face(ShapedScript::Arabic).is_some_and(|(font, _, _)| font.charmap().map(c).is_some())
 }
 
 /// Shape one directional run of `text` with the Arabic document face. The clusters come in
@@ -72,7 +74,7 @@ pub fn shape_arabic(text: &str, rtl: bool) -> Result<Vec<ShapedCluster>, GlyphEr
 
 /// Whether the Hebrew document face has a glyph for `c` (false without the face).
 pub fn hebrew_has(c: char) -> bool {
-    face(ShapedScript::Hebrew).is_some_and(|(font, _)| font.charmap().map(c).is_some())
+    face(ShapedScript::Hebrew).is_some_and(|(font, _, _)| font.charmap().map(c).is_some())
 }
 
 /// Shape one directional run of `text` with the Hebrew document face, clusters in drawing order.
@@ -82,7 +84,7 @@ pub fn shape_hebrew(text: &str, rtl: bool) -> Result<Vec<ShapedCluster>, GlyphEr
 }
 
 pub fn thai_has(c: char) -> bool {
-    face(ShapedScript::Thai).is_some_and(|(font, _)| font.charmap().map(c).is_some())
+    face(ShapedScript::Thai).is_some_and(|(font, _, _)| font.charmap().map(c).is_some())
 }
 
 /// Shape Thai with grapheme clusters so Sara Am decomposition and stacked marks keep their
@@ -92,8 +94,8 @@ pub fn shape_thai(text: &str) -> Result<Vec<ShapedCluster>, GlyphError> {
 }
 
 fn shape_script(text: &str, rtl: bool, kind: ShapedScript) -> Result<Vec<ShapedCluster>, GlyphError> {
-    let (font, data) = face(kind).ok_or(GlyphError::NoFont)?;
-    let shaper = data.shaper(font).build();
+    let (_, data, harf_font) = face(kind).ok_or(GlyphError::NoFont)?;
+    let shaper = data.shaper(harf_font).build();
     let scale = 1.0 / f64::from(shaper.units_per_em().max(1));
     let mut buffer = UnicodeBuffer::new();
     buffer.push_str(text);
@@ -146,7 +148,7 @@ pub fn arabic_glyph(id: u32) -> Result<GlyphOutline, GlyphError> {
 
 /// A bounded outline from the same face that produced the shaped glyph id.
 pub fn shaped_glyph(script: ShapedScript, id: u32) -> Result<GlyphOutline, GlyphError> {
-    let (font, _) = face(script).ok_or(GlyphError::NoFont)?;
+    let (font, _, _) = face(script).ok_or(GlyphError::NoFont)?;
     if font.maxp().map_or(true, |m| id >= u32::from(m.num_glyphs())) {
         return Err(GlyphError::Missing);
     }
