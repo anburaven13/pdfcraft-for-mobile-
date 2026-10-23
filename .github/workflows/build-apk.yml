@@ -1,0 +1,134 @@
+name: Build & Sign PdfCraft Android APK
+
+on:
+  push:
+    branches: [ main, master ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build Type (release or debug)'
+        required: true
+        default: 'release'
+        type: choice
+        options:
+          - release
+          - debug
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Set up Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r26b
+          add-to-path: true
+
+      - name: Set up Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android, x86_64-linux-android
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: .
+
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk --locked
+
+      - name: Compile Rust Core Engine (cdylib) for Android ABIs
+        run: |
+          mkdir -p android/app/src/main/jniLibs/arm64-v8a
+          mkdir -p android/app/src/main/jniLibs/x86_64
+
+          echo "Compiling for arm64-v8a (Physical Android Devices)..."
+          cargo ndk -t arm64-v8a -o android/app/src/main/jniLibs build --release -p pdfcraft-android
+
+          echo "Compiling for x86_64 (Android Emulators / Tablets)..."
+          cargo ndk -t x86_64 -o android/app/src/main/jniLibs build --release -p pdfcraft-android
+
+          echo "Verifying compiled native libraries:"
+          ls -la android/app/src/main/jniLibs/*
+
+      - name: Prepare Signing Keystore
+        id: prepare-keystore
+        run: |
+          mkdir -p android/keystore
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "Using production signing keystore from GitHub Secrets..."
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/keystore/release.jks
+            echo "KEYSTORE_FILE=$GITHUB_WORKSPACE/android/keystore/release.jks" >> $GITHUB_ENV
+            echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> $GITHUB_ENV
+            echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
+          else
+            echo "Generating self-signed release keystore for CI..."
+            keytool -genkeypair -v \
+              -keystore android/keystore/release.jks \
+              -alias pdfcraftkey \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -storepass pdfcraft123 \
+              -keypass pdfcraft123 \
+              -dname "CN=PdfCraft, OU=Mobile, O=Storytold, L=Local, S=State, C=US"
+            echo "KEYSTORE_FILE=$GITHUB_WORKSPACE/android/keystore/release.jks" >> $GITHUB_ENV
+            echo "KEYSTORE_PASSWORD=pdfcraft123" >> $GITHUB_ENV
+            echo "KEY_ALIAS=pdfcraftkey" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=pdfcraft123" >> $GITHUB_ENV
+          fi
+
+      - name: Build Android APK
+        run: |
+          cd android
+          chmod +x gradlew || true
+          gradle wrapper
+          chmod +x gradlew
+          ./gradlew assembleRelease --stacktrace
+
+      - name: Locate and Rename APK
+        run: |
+          APK_PATH=$(find android/app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          if [ -n "$APK_PATH" ]; then
+            cp "$APK_PATH" android/app/build/outputs/apk/release/PdfCraft-v0.13.0-arm64-release.apk
+            echo "APK generated at: android/app/build/outputs/apk/release/PdfCraft-v0.13.0-arm64-release.apk"
+          else
+            echo "ERROR: APK not found!"
+            exit 1
+          fi
+
+      - name: Upload APK as Action Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PdfCraft-Android-APK
+          path: android/app/build/outputs/apk/release/*.apk
+          retention-days: 30
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: android/app/build/outputs/apk/release/*.apk
+          generate_release_notes: true
+          draft: false
+          prerelease: false

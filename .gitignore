@@ -1,0 +1,31 @@
+*~
+plan/
+/target
+/dist
+/corpus
+/log
+.DS_Store
+/fuzz-out
+/assets/models
+/craft-fonts
+
+# Android & Gradle
+.gradle/
+build/
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/keystore/
+*.jks
+*.keystore
+*.apk
+*.aab
+android/app/src/main/jniLibs/arm64-v8a/*.so
+android/app/src/main/jniLibs/x86_64/*.so
+android/app/src/main/jniLibs/armeabi-v7a/*.so
+
+# IDE
+.idea/
+*.iml
+.vscode/

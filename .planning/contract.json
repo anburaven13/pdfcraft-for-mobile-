@@ -1,0 +1,40 @@
+{
+  "project": "PdfCraft Android",
+  "upstream": "https://github.com/storytold/pdfcraft",
+  "invariants": {
+    "ground_before_mutating": true,
+    "stay_in_declared_scope": true,
+    "completion_needs_evidence": true,
+    "never_exact_retry": true,
+    "satisfy_contract": true,
+    "say_what_you_cannot_verify": true
+  },
+  "policy": {
+    "planning": "compact",
+    "context_depth": "dependency",
+    "verification_depth": "impact",
+    "delegation": "none",
+    "reason_codes": ["mobile-port", "native-jni-bridge", "github-actions-ci-cd"]
+  },
+  "allowed_write_scope": [
+    ".planning/**",
+    ".github/workflows/**",
+    "crates/**",
+    "android/**",
+    "Cargo.toml",
+    "Cargo.lock",
+    "README.md",
+    ".gitignore"
+  ],
+  "acceptance_criteria": [
+    "AC-01: GSD & Gravitas specifications initialized (.planning/)",
+    "AC-02: Rust JNI crate (pdfcraft-android) created exposing engine, render, organize, security, and forms APIs",
+    "AC-03: Native Android Jetpack Compose app created with full Material 3 mobile UI",
+    "AC-04: High-fidelity PDF viewer screen with pinch-to-zoom, pan, page scrubber, and dark mode reading",
+    "AC-05: Page organize screen with thumbnail grid, drag-and-drop reorder, rotate, delete, and extract",
+    "AC-06: PDF Tools suite (Merge PDFs, Split PDF, AES-256 Encrypt, Decrypt with password)",
+    "AC-07: Form filling and annotation layer support",
+    "AC-08: Production GitHub Actions workflow (.github/workflows/build-apk.yml) for automated building, signing, and releasing APK",
+    "AC-09: Comprehensive README.md with architecture, build instructions, GitHub Secrets guide, and mobile screenshots/features documentation"
+  ]
+}

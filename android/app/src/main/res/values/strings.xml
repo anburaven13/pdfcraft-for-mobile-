@@ -1,0 +1,20 @@
+<resources>
+    <string name="app_name">PdfCraft</string>
+    <string name="action_open_pdf">Open PDF Document</string>
+    <string name="action_merge_pdf">Merge PDFs</string>
+    <string name="action_split_pdf">Split PDF</string>
+    <string name="action_encrypt_pdf">Protect with Password</string>
+    <string name="action_reorder_pages">Organize Pages</string>
+    <string name="title_viewer">Document Viewer</string>
+    <string name="title_organize">Organize Pages</string>
+    <string name="title_tools">PDF Tools</string>
+    <string name="night_mode">Night Reading Mode</string>
+    <string name="password_required">This document is protected by a password.</string>
+    <string name="enter_password">Enter Password</string>
+    <string name="confirm">Confirm</string>
+    <string name="cancel">Cancel</string>
+    <string name="rotate_cw">Rotate 90° Clockwise</string>
+    <string name="delete_page">Delete Page</string>
+    <string name="extract_pages">Extract Selected Pages</string>
+    <string name="save_changes">Save Document</string>
+</resources>
