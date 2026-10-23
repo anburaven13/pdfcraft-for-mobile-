@@ -8,18 +8,14 @@ on:
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:
-    inputs:
-      build_type:
-        description: 'Build Type (release or debug)'
-        required: true
-        default: 'release'
-        type: choice
-        options:
-          - release
-          - debug
 
 permissions:
   contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  RUSTFLAGS: "-C opt-level=2 -C codegen-units=16"
 
 jobs:
   build-apk:
@@ -46,29 +42,25 @@ jobs:
       - name: Set up Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-linux-android, x86_64-linux-android
+          targets: aarch64-linux-android
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: .
 
-      - name: Install cargo-ndk
-        run: cargo install cargo-ndk --locked
+      - name: Install cargo-ndk (Pre-built Binary)
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-ndk
 
-      - name: Compile Rust Core Engine (cdylib) for Android ABIs
+      - name: Compile Rust Core Engine (cdylib) for arm64-v8a
         run: |
           mkdir -p android/app/src/main/jniLibs/arm64-v8a
-          mkdir -p android/app/src/main/jniLibs/x86_64
-
           echo "Compiling for arm64-v8a (Physical Android Devices)..."
           cargo ndk -t arm64-v8a -o android/app/src/main/jniLibs build --release -p pdfcraft-android
-
-          echo "Compiling for x86_64 (Android Emulators / Tablets)..."
-          cargo ndk -t x86_64 -o android/app/src/main/jniLibs build --release -p pdfcraft-android
-
-          echo "Verifying compiled native libraries:"
-          ls -la android/app/src/main/jniLibs/*
+          echo "Native library compiled successfully:"
+          ls -la android/app/src/main/jniLibs/arm64-v8a/
 
       - name: Prepare Signing Keystore
         id: prepare-keystore
@@ -98,7 +90,7 @@ jobs:
             echo "KEY_PASSWORD=pdfcraft123" >> $GITHUB_ENV
           fi
 
-      - name: Build Android APK
+      - name: Build Android APK with Gradle
         run: |
           cd android
           chmod +x gradlew || true
@@ -111,9 +103,9 @@ jobs:
           APK_PATH=$(find android/app/build/outputs/apk/release -name "*.apk" | head -n 1)
           if [ -n "$APK_PATH" ]; then
             cp "$APK_PATH" android/app/build/outputs/apk/release/PdfCraft-v0.13.0-arm64-release.apk
-            echo "APK generated at: android/app/build/outputs/apk/release/PdfCraft-v0.13.0-arm64-release.apk"
+            echo "APK ready at: android/app/build/outputs/apk/release/PdfCraft-v0.13.0-arm64-release.apk"
           else
-            echo "ERROR: APK not found!"
+            echo "ERROR: APK file was not produced!"
             exit 1
           fi
 
