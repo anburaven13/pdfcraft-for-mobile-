@@ -29,7 +29,7 @@ unsafe fn get_doc<'a>(handle: jlong) -> Option<&'a mut NativePdfDocument> {
 /// Returns a non-zero handle (pointer) on success, or 0 on failure.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_storytold_pdfcraft_core_PdfCraftBridge_nativeOpenDocument(
-    env: JNIEnv,
+    mut env: JNIEnv,
     _class: JClass,
     bytes_arr: JByteArray,
     password_str: JString,
@@ -476,7 +476,7 @@ pub extern "system" fn Java_com_storytold_pdfcraft_core_PdfCraftBridge_nativeSav
 /// Encrypt document with user and owner passwords using AES-256 standard handler.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_storytold_pdfcraft_core_PdfCraftBridge_nativeEncryptDocument(
-    env: JNIEnv,
+    mut env: JNIEnv,
     _class: JClass,
     handle: jlong,
     user_pwd: JString,
