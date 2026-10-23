@@ -121,10 +121,25 @@ jobs:
           retention-days: 30
 
       - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.13.0' }}
+          name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'PdfCraft Android v0.13.0' }}
+          body: |
+            ## PdfCraft for Android v0.13.0
+            
+            Pure-Rust Native PDF reader, organizer, and security tool for Android.
+            
+            ### Included in this Release:
+            - **Native Core Engine:** Rust cdylib (`libpdfcraft_android.so`) compiled with `cargo-ndk` for `arm64-v8a`.
+            - **Modern UI:** Jetpack Compose Material 3 interface with dark/light themes, gesture zoom/pan, and night reading mode.
+            - **Document Organizer:** Rotate, delete, extract, and reorder pages.
+            - **PDF Tools:** Multi-document merge and AES-256 standard encryption.
+            
+            ### Installation:
+            Download **`PdfCraft-v0.13.0-arm64-release.apk`** below and install directly on your Android phone or tablet.
           files: android/app/build/outputs/apk/release/*.apk
-          generate_release_notes: true
+          generate_release_notes: false
           draft: false
           prerelease: false
