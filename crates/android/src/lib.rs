@@ -3,7 +3,7 @@
 
 use std::sync::{Arc, Mutex};
 use jni::JNIEnv;
-use jni::objects::{JByteArray, JClass, JIntArray, JObject, JObjectArray, JString};
+use jni::objects::{JByteArray, JByteBuffer, JClass, JIntArray, JObjectArray, JString};
 use jni::sys::{jboolean, jbyteArray, jfloat, jfloatArray, jint, jintArray, jlong, jobjectArray, jsize, jstring};
 
 use pdfcraft_cos::{Document as CosDocument, SaveOptions, write_full};
@@ -29,7 +29,7 @@ unsafe fn get_doc<'a>(handle: jlong) -> Option<&'a mut NativePdfDocument> {
 /// Returns a non-zero handle (pointer) on success, or 0 on failure.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_storytold_pdfcraft_core_PdfCraftBridge_nativeOpenDocument(
-    mut env: JNIEnv,
+    env: JNIEnv,
     _class: JClass,
     bytes_arr: JByteArray,
     password_str: JString,
@@ -105,7 +105,7 @@ pub extern "system" fn Java_com_storytold_pdfcraft_core_PdfCraftBridge_nativeGet
 /// Return page dimensions in PDF points [width, height].
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_storytold_pdfcraft_core_PdfCraftBridge_nativeGetPageDimensions(
-    mut env: JNIEnv,
+    env: JNIEnv,
     _class: JClass,
     handle: jlong,
     page_index: jint,
@@ -144,12 +144,12 @@ pub extern "system" fn Java_com_storytold_pdfcraft_core_PdfCraftBridge_nativeGet
 /// Returns [rendered_width, rendered_height] on success, or empty on failure.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_storytold_pdfcraft_core_PdfCraftBridge_nativeRenderPage(
-    mut env: JNIEnv,
+    env: JNIEnv,
     _class: JClass,
     handle: jlong,
     page_index: jint,
     scale: jfloat,
-    buffer_obj: JObject,
+    buffer_obj: JByteBuffer,
     night_mode: jboolean,
 ) -> jintArray {
     let native = match unsafe { get_doc(handle) } {
@@ -217,7 +217,7 @@ pub extern "system" fn Java_com_storytold_pdfcraft_core_PdfCraftBridge_nativeRen
 /// Render a thumbnail for a page, returned as encoded JPEG byte array.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_storytold_pdfcraft_core_PdfCraftBridge_nativeRenderThumbnail(
-    mut env: JNIEnv,
+    env: JNIEnv,
     _class: JClass,
     handle: jlong,
     page_index: jint,
@@ -287,7 +287,7 @@ pub extern "system" fn Java_com_storytold_pdfcraft_core_PdfCraftBridge_nativeRen
 /// Rotate pages by 90, 180, or 270 degrees.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_storytold_pdfcraft_core_PdfCraftBridge_nativeRotatePages(
-    mut env: JNIEnv,
+    env: JNIEnv,
     _class: JClass,
     handle: jlong,
     page_indices: JIntArray,
@@ -318,7 +318,7 @@ pub extern "system" fn Java_com_storytold_pdfcraft_core_PdfCraftBridge_nativeRot
 /// Delete specified pages.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_storytold_pdfcraft_core_PdfCraftBridge_nativeDeletePages(
-    mut env: JNIEnv,
+    env: JNIEnv,
     _class: JClass,
     handle: jlong,
     page_indices: JIntArray,
@@ -369,7 +369,7 @@ pub extern "system" fn Java_com_storytold_pdfcraft_core_PdfCraftBridge_nativeMov
 /// Extract specified pages into a new standalone PDF document.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_storytold_pdfcraft_core_PdfCraftBridge_nativeExtractPages(
-    mut env: JNIEnv,
+    env: JNIEnv,
     _class: JClass,
     handle: jlong,
     page_indices: JIntArray,
@@ -476,7 +476,7 @@ pub extern "system" fn Java_com_storytold_pdfcraft_core_PdfCraftBridge_nativeSav
 /// Encrypt document with user and owner passwords using AES-256 standard handler.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_storytold_pdfcraft_core_PdfCraftBridge_nativeEncryptDocument(
-    mut env: JNIEnv,
+    env: JNIEnv,
     _class: JClass,
     handle: jlong,
     user_pwd: JString,
@@ -523,7 +523,7 @@ pub extern "system" fn Java_com_storytold_pdfcraft_core_PdfCraftBridge_nativeEnc
 /// Extract text from a page in reading order.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_storytold_pdfcraft_core_PdfCraftBridge_nativeGetPageText(
-    mut env: JNIEnv,
+    env: JNIEnv,
     _class: JClass,
     handle: jlong,
     page_index: jint,
