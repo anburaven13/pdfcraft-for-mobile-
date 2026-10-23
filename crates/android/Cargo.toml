@@ -16,12 +16,5 @@ pdfcraft-cos = { workspace = true }
 pdfcraft-organize = { workspace = true }
 pdfcraft-render = { workspace = true }
 pdfcraft-crypt = { workspace = true }
-pdfcraft-forms = { workspace = true }
-pdfcraft-engine = { workspace = true }
-pdfcraft-model = { workspace = true }
-jni = "0.22"
-bytemuck = "1"
-log = { workspace = true }
-serde = { workspace = true }
-serde_json = { workspace = true }
+jni = "0.21.1"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
