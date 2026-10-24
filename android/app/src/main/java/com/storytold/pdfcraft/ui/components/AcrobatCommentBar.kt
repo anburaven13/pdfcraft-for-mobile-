@@ -140,7 +140,7 @@ private fun CommentIconItem(
     onClick: () -> Unit
 ) {
     Column(
-        horizontalAlignment = Alignment.CenterVertically,
+        horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
             .clickable(onClick = onClick)
