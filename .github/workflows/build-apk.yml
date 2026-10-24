@@ -102,6 +102,12 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleRelease --stacktrace
 
+      - name: Report Build Failures
+        if: failure()
+        run: |
+          echo "=== Compilation and Build Failure Diagnostics ==="
+          find android/ -name "*.log" -o -name "*error*.txt" -exec cat {} + || true
+
       - name: Locate and Rename APK
         run: |
           APK_PATH=$(find android/app/build/outputs/apk/release -name "*.apk" | head -n 1)
