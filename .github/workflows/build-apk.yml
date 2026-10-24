@@ -118,7 +118,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -b build-error-log || git checkout build-error-log || true
-          tail -n 200 android/gradle_build.log > build_error.txt 2>&1 || true
+          cat android/gradle_build.log > build_error.txt 2>&1 || true
           git add build_error.txt
           git commit -m "ci: capture gradle build error [skip ci]" || true
           git push origin build-error-log --force || true
