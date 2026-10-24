@@ -3,36 +3,86 @@ package com.storytold.pdfcraft.ui.components
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ModeComment
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.storytold.pdfcraft.core.PdfDocument
+import com.storytold.pdfcraft.ui.theme.AcrobatActionBlue
+import com.storytold.pdfcraft.ui.theme.AcrobatRed
+
+data class PageStamp(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val type: FillSignTool,
+    var x: Float,
+    var y: Float,
+    var text: String = "",
+    val bitmap: Bitmap? = null
+)
+
+data class PageCommentNote(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    var x: Float,
+    var y: Float,
+    var text: String = ""
+)
 
 /**
- * Interactive touch canvas for a single PDF page with smooth pinch-zoom and pan.
+ * Interactive touch canvas for a PDF page with Acrobat gestures,
+ * pinch-to-zoom, Fill & Sign stamp placement, freehand drawing, and sticky notes.
  */
 @Composable
 fun PdfPageView(
     document: PdfDocument,
     pageIndex: Int,
     nightMode: Boolean = false,
+    activeFillSignTool: FillSignTool = FillSignTool.NONE,
+    activeCommentTool: CommentTool = CommentTool.NONE,
+    onFillSignTap: (Offset) -> Unit = {},
+    onCommentTap: (Offset) -> Unit = {},
+    stamps: List<PageStamp> = emptyList(),
+    notes: List<PageCommentNote> = emptyList(),
+    onDeleteStamp: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var pageBitmap by remember(pageIndex, nightMode) { mutableStateOf<Bitmap?>(null) }
@@ -40,6 +90,10 @@ fun PdfPageView(
 
     var scale by remember(pageIndex) { mutableFloatStateOf(1f) }
     var offset by remember(pageIndex) { mutableStateOf(Offset.Zero) }
+
+    // Freehand drawing strokes for markup
+    val drawingStrokes = remember { mutableStateListOf<StrokePath>() }
+    var currentDrawPoints = remember { mutableStateListOf<Offset>() }
 
     // Render the page in background coroutine
     LaunchedEffect(pageIndex, nightMode) {
@@ -49,50 +103,234 @@ fun PdfPageView(
         isLoading = false
     }
 
-    val state = rememberTransformableState { zoomChange, offsetChange, _ ->
-        val newScale = (scale * zoomChange).coerceIn(1f, 5f)
-        scale = newScale
-        if (newScale > 1f) {
-            val maxOffset = 1000f * (newScale - 1f)
-            offset = Offset(
-                x = (offset.x + offsetChange.x * newScale).coerceIn(-maxOffset, maxOffset),
-                y = (offset.y + offsetChange.y * newScale).coerceIn(-maxOffset, maxOffset)
-            )
-        } else {
-            offset = Offset.Zero
+    val transformState = rememberTransformableState { zoomChange, offsetChange, _ ->
+        if (activeFillSignTool == FillSignTool.NONE && activeCommentTool != CommentTool.PEN) {
+            val newScale = (scale * zoomChange).coerceIn(1f, 5f)
+            scale = newScale
+            if (newScale > 1f) {
+                val maxOffset = 1000f * (newScale - 1f)
+                offset = Offset(
+                    x = (offset.x + offsetChange.x * newScale).coerceIn(-maxOffset, maxOffset),
+                    y = (offset.y + offsetChange.y * newScale).coerceIn(-maxOffset, maxOffset)
+                )
+            } else {
+                offset = Offset.Zero
+            }
         }
     }
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(if (nightMode) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surfaceVariant)
-            .pointerInput(pageIndex) {
+            .background(if (nightMode) Color(0xFF1E1E1E) else Color(0xFFEBEBEB))
+            .pointerInput(pageIndex, activeFillSignTool, activeCommentTool) {
                 detectTapGestures(
                     onDoubleTap = {
-                        scale = if (scale > 1.5f) 1f else 2.5f
-                        offset = Offset.Zero
+                        if (activeFillSignTool == FillSignTool.NONE && activeCommentTool == CommentTool.NONE) {
+                            scale = if (scale > 1.5f) 1f else 2.5f
+                            offset = Offset.Zero
+                        }
+                    },
+                    onTap = { tapOffset ->
+                        if (activeFillSignTool != FillSignTool.NONE) {
+                            onFillSignTap(tapOffset)
+                        } else if (activeCommentTool == CommentTool.STICKY_NOTE) {
+                            onCommentTap(tapOffset)
+                        }
                     }
                 )
             }
-            .transformable(state = state),
+            .then(
+                if (activeCommentTool == CommentTool.PEN) {
+                    Modifier.pointerInput(Unit) {
+                        detectDragGestures(
+                            onDragStart = { startOffset ->
+                                currentDrawPoints.clear()
+                                currentDrawPoints.add(startOffset)
+                            },
+                            onDrag = { change, _ ->
+                                change.consume()
+                                currentDrawPoints.add(change.position)
+                            },
+                            onDragEnd = {
+                                if (currentDrawPoints.isNotEmpty()) {
+                                    drawingStrokes.add(
+                                        StrokePath(
+                                            points = currentDrawPoints.toList(),
+                                            color = Color(0xFFD32F2F),
+                                            strokeWidth = 5f
+                                        )
+                                    )
+                                    currentDrawPoints.clear()
+                                }
+                            }
+                        )
+                    }
+                } else {
+                    Modifier.transformable(state = transformState)
+                }
+            ),
         contentAlignment = Alignment.Center
     ) {
         if (isLoading) {
-            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+            CircularProgressIndicator(color = AcrobatRed)
         } else if (pageBitmap != null) {
-            Image(
-                bitmap = pageBitmap!!.asImageBitmap(),
-                contentDescription = "PDF Page ${pageIndex + 1}",
+            Box(
                 modifier = Modifier
-                    .fillMaxSize()
                     .graphicsLayer(
                         scaleX = scale,
                         scaleY = scale,
                         translationX = offset.x,
                         translationY = offset.y
                     )
-            )
+                    .shadow(8.dp, RoundedCornerShape(2.dp))
+                    .background(Color.White)
+            ) {
+                // PDF Rendered Image
+                Image(
+                    bitmap = pageBitmap!!.asImageBitmap(),
+                    contentDescription = "PDF Page ${pageIndex + 1}"
+                )
+
+                // Freehand Drawing Layer
+                androidx.compose.foundation.Canvas(modifier = Modifier.matchParentSize()) {
+                    for (stroke in drawingStrokes) {
+                        if (stroke.points.size > 1) {
+                            val p = androidx.compose.ui.graphics.Path()
+                            p.moveTo(stroke.points[0].x, stroke.points[0].y)
+                            for (i in 1 until stroke.points.size) {
+                                p.lineTo(stroke.points[i].x, stroke.points[i].y)
+                            }
+                            drawPath(
+                                path = p,
+                                color = stroke.color,
+                                style = Stroke(width = stroke.strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round)
+                            )
+                        }
+                    }
+                    if (currentDrawPoints.size > 1) {
+                        val activeP = androidx.compose.ui.graphics.Path()
+                        activeP.moveTo(currentDrawPoints[0].x, currentDrawPoints[0].y)
+                        for (i in 1 until currentDrawPoints.size) {
+                            activeP.lineTo(currentDrawPoints[i].x, currentDrawPoints[i].y)
+                        }
+                        drawPath(
+                            path = activeP,
+                            color = Color(0xFFD32F2F),
+                            style = Stroke(width = 5f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+                        )
+                    }
+                }
+
+                // Render Stamped Items (Checkmarks, Crosses, Dates, Signatures)
+                for (stamp in stamps) {
+                    Box(
+                        modifier = Modifier
+                            .offset { IntOffset(stamp.x.toInt(), stamp.y.toInt()) }
+                            .padding(4.dp)
+                    ) {
+                        when (stamp.type) {
+                            FillSignTool.CHECKMARK -> {
+                                Text(
+                                    text = "✓",
+                                    fontSize = 28.sp,
+                                    color = AcrobatActionBlue,
+                                    modifier = Modifier.clickable { onDeleteStamp(stamp.id) }
+                                )
+                            }
+                            FillSignTool.CROSS -> {
+                                Text(
+                                    text = "✗",
+                                    fontSize = 28.sp,
+                                    color = AcrobatRed,
+                                    modifier = Modifier.clickable { onDeleteStamp(stamp.id) }
+                                )
+                            }
+                            FillSignTool.DATE -> {
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = Color(0xEEFFFFFF),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, AcrobatActionBlue),
+                                    modifier = Modifier.clickable { onDeleteStamp(stamp.id) }
+                                ) {
+                                    Text(
+                                        text = stamp.text,
+                                        fontSize = 14.sp,
+                                        color = Color.Black,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                            FillSignTool.TEXT -> {
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = Color(0xDDFFFFFF),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, AcrobatActionBlue),
+                                    modifier = Modifier.clickable { onDeleteStamp(stamp.id) }
+                                ) {
+                                    Text(
+                                        text = stamp.text,
+                                        fontSize = 14.sp,
+                                        color = Color.Black,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                            FillSignTool.SIGNATURE -> {
+                                if (stamp.bitmap != null) {
+                                    Box {
+                                        Image(
+                                            bitmap = stamp.bitmap.asImageBitmap(),
+                                            contentDescription = "Signature Stamp",
+                                            modifier = Modifier
+                                                .size(120.dp, 60.dp)
+                                                .border(1.dp, Color(0x441473E6), RoundedCornerShape(4.dp))
+                                        )
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.TopEnd)
+                                                .size(18.dp)
+                                                .clip(CircleShape)
+                                                .background(AcrobatRed)
+                                                .clickable { onDeleteStamp(stamp.id) },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Close,
+                                                contentDescription = "Delete",
+                                                tint = Color.White,
+                                                modifier = Modifier.size(12.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            else -> {}
+                        }
+                    }
+                }
+
+                // Render Sticky Notes
+                for (note in notes) {
+                    Box(
+                        modifier = Modifier
+                            .offset { IntOffset(note.x.toInt(), note.y.toInt()) }
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFFFD54F))
+                            .shadow(4.dp, CircleShape)
+                            .padding(4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ModeComment,
+                            contentDescription = "Note",
+                            tint = Color(0xFF424242),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            }
         }
     }
 }

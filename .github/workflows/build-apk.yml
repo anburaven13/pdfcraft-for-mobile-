@@ -105,9 +105,10 @@ jobs:
       - name: Locate and Rename APK
         run: |
           APK_PATH=$(find android/app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          VERSION="${GITHUB_REF_NAME:-v0.14.0}"
           if [ -n "$APK_PATH" ]; then
-            cp "$APK_PATH" android/app/build/outputs/apk/release/PdfCraft-v0.13.0-arm64-release.apk
-            echo "APK ready at: android/app/build/outputs/apk/release/PdfCraft-v0.13.0-arm64-release.apk"
+            cp "$APK_PATH" "android/app/build/outputs/apk/release/PdfCraft-${VERSION}-arm64-release.apk"
+            echo "APK ready at: android/app/build/outputs/apk/release/PdfCraft-${VERSION}-arm64-release.apk"
           else
             echo "ERROR: APK file was not produced!"
             exit 1
@@ -124,21 +125,28 @@ jobs:
         if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.13.0' }}
-          name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'PdfCraft Android v0.13.0' }}
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.14.0' }}
+          name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'PdfCraft Android v0.14.0 - Acrobat Mobile Overhaul' }}
           body: |
-            ## PdfCraft for Android v0.13.0
-            
-            Pure-Rust Native PDF reader, organizer, and security tool for Android.
-            
-            ### Included in this Release:
-            - **Native Core Engine:** Rust cdylib (`libpdfcraft_android.so`) compiled with `cargo-ndk` for `arm64-v8a`.
-            - **Modern UI:** Jetpack Compose Material 3 interface with dark/light themes, gesture zoom/pan, and night reading mode.
-            - **Document Organizer:** Rotate, delete, extract, and reorder pages.
-            - **PDF Tools:** Multi-document merge and AES-256 standard encryption.
-            
-            ### Installation:
-            Download **`PdfCraft-v0.13.0-arm64-release.apk`** below and install directly on your Android phone or tablet.
+            ## PdfCraft for Android v0.14.0 — Adobe Acrobat Mobile Overhaul
+
+            100% Offline, Pure-Rust native PDF reader, editor, organizer, and security tool for Android. Free and open source with identical feature set, visual layout, and speed of Adobe Acrobat Mobile without any cloud logins, subscriptions, or telemetry.
+
+            ### ✨ Highlights in this Release:
+            - **Exact Adobe Acrobat Mobile Layout:** 3-tab bottom navigation (`Home`, `Files`, `Tools`), Recent & Starred file lists with rich metadata cards (PDF badge, size, last opened timestamp, 3-dot overflow menu).
+            - **Continuous Vertical Reading Mode:** Smooth continuous vertical page scroll (Acrobat default) with pinch-to-zoom (up to 500%), double-tap zoom, and floating page indicator pill scrubber (`Page 3 of 15`).
+            - **In-Document Search:** Real-time text search across all pages with occurrence counter (`1 of 12`), Next/Previous navigation buttons, and instant auto-scroll to matches powered by Rust.
+            - **Acrobat Floating Action Button (FAB):** Iconic action-blue circular button (`#1473E6`) with expandable tool dial for Comment & Markup, Fill & Sign, Organize Pages, and Text Extraction.
+            - **Fill & Sign Suite:**
+              - Touch & Stylus signature drawing canvas (`SignaturePadDialog`) with Blue and Black ink options, clear canvas, and signature saving.
+              - Tap-to-stamp signatures, text labels, checkmarks (`✓`), cross marks (`✗`), and auto-date stamps directly onto document pages.
+            - **Comment & Markup Palette:** Floating annotation toolbar with highlighter (Yellow, Green, Cyan, Pink), underline, strikethrough, freehand drawing pen, and sticky notes.
+            - **Organize Pages Hub:** Visual thumbnail grid with multi-selection, 90° CW/CCW rotation, page reordering (move left/right), deletion, and extraction into a new PDF.
+            - **PDF Workbench Tools:** Offline multi-PDF merge, AES-256 standard encryption, and stream compressor.
+            - **100% Offline, Private & Fast:** Powered entirely by the pure-Rust ARM64 cdylib engine (`libpdfcraft_android.so`). No cloud interference, no trackers.
+
+            ### 📲 Installation:
+            Download the signed release APK below (**`PdfCraft-v0.14.0-arm64-release.apk`**) and install directly on your Android device (Android 8.0+ / ARM64).
           files: android/app/build/outputs/apk/release/*.apk
           generate_release_notes: false
           draft: false

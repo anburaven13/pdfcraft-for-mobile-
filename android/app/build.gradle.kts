@@ -11,8 +11,8 @@ android {
         applicationId = "com.storytold.pdfcraft"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.13.0"
+        versionCode = 2
+        versionName = "0.14.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

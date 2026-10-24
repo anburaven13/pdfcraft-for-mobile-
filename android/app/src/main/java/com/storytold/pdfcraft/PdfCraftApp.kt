@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.documentfile.provider.DocumentFile
 import com.storytold.pdfcraft.core.PdfDocument
+import com.storytold.pdfcraft.core.RecentFilesManager
 import com.storytold.pdfcraft.ui.components.PasswordDialog
 import com.storytold.pdfcraft.ui.screens.HomeScreen
 import com.storytold.pdfcraft.ui.screens.OrganizeScreen
@@ -47,6 +48,7 @@ fun PdfCraftApp(
     // Password prompt state
     var pendingPdfBytes by remember { mutableStateOf<ByteArray?>(null) }
     var pendingPdfName by remember { mutableStateOf("document.pdf") }
+    var pendingPdfUri by remember { mutableStateOf<Uri?>(null) }
     var showPasswordDialog by remember { mutableStateOf(false) }
 
     fun loadPdfFromUri(uri: Uri, password: String? = null) {
@@ -63,11 +65,13 @@ fun PdfCraftApp(
                 if (doc != null) {
                     activeDocument?.close()
                     activeDocument = doc
+                    RecentFilesManager.addOrUpdateFile(context, uri, docName, bytes.size.toLong())
                     currentScreen = Screen.Viewer
                 } else {
                     // Might be password protected
                     pendingPdfBytes = bytes
                     pendingPdfName = docName
+                    pendingPdfUri = uri
                     showPasswordDialog = true
                 }
             } catch (e: Exception) {
@@ -144,10 +148,12 @@ fun PdfCraftApp(
                 onDismiss = {
                     showPasswordDialog = false
                     pendingPdfBytes = null
+                    pendingPdfUri = null
                 },
                 onConfirm = { pwd ->
                     showPasswordDialog = false
                     val bytes = pendingPdfBytes
+                    val uri = pendingPdfUri
                     if (bytes != null) {
                         scope.launch {
                             isLoading = true
@@ -156,6 +162,9 @@ fun PdfCraftApp(
                             if (doc != null) {
                                 activeDocument?.close()
                                 activeDocument = doc
+                                if (uri != null) {
+                                    RecentFilesManager.addOrUpdateFile(context, uri, pendingPdfName, bytes.size.toLong())
+                                }
                                 currentScreen = Screen.Viewer
                             } else {
                                 Toast.makeText(context, "Incorrect password", Toast.LENGTH_SHORT).show()
