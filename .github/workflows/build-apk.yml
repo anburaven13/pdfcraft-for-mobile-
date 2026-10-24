@@ -100,7 +100,16 @@ jobs:
           chmod +x gradlew || true
           gradle wrapper
           chmod +x gradlew
-          ./gradlew assembleRelease --stacktrace
+          echo "Starting assembleRelease..."
+          ./gradlew assembleRelease --stacktrace > gradle_build.log 2>&1 || {
+            BUILD_STATUS=$?
+            echo "### Gradle Build Failed" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            tail -n 80 gradle_build.log >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            tail -n 80 gradle_build.log
+            exit $BUILD_STATUS
+          }
 
       - name: Report Build Failures
         if: failure()

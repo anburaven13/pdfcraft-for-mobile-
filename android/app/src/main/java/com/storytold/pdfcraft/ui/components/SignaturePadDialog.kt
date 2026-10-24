@@ -52,7 +52,6 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.storytold.pdfcraft.ui.theme.AcrobatActionBlue
 import com.storytold.pdfcraft.ui.theme.InkBlack
 import com.storytold.pdfcraft.ui.theme.InkBlue
@@ -74,8 +73,7 @@ fun SignaturePadDialog(
     var canvasSize by remember { mutableStateOf(IntSize(600, 300)) }
 
     Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        onDismissRequest = onDismiss
     ) {
         Card(
             modifier = Modifier

@@ -305,7 +305,7 @@ fun OrganizeScreen(
                 .padding(innerPadding)
                 .background(MaterialTheme.colorScheme.background)
         ) {
-            items(pageCount) { index ->
+            items(count = pageCount) { index ->
                 val isSelected = selectedPages[index] == true
                 val thumbnail = thumbnails[index]
 

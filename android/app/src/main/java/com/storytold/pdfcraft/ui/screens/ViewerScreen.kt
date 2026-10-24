@@ -434,7 +434,7 @@ fun ViewerScreen(
                         .background(if (nightMode) Color(0xFF181818) else Color(0xFFE5E5E5)),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    items(totalPages) { pageIdx ->
+                    items(count = totalPages) { pageIdx ->
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
