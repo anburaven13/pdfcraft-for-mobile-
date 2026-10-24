@@ -21,7 +21,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ModeComment
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -69,7 +68,7 @@ data class PageCommentNote(
 
 /**
  * Interactive touch canvas for a PDF page with Acrobat gestures,
- * pinch-to-zoom, Fill & Sign stamp placement, freehand drawing, and sticky notes.
+ * pinch-to-zoom, Fill & Sign draggable stamp placement, freehand drawing, and sticky notes.
  */
 @Composable
 fun PdfPageView(
@@ -78,6 +77,7 @@ fun PdfPageView(
     nightMode: Boolean = false,
     activeFillSignTool: FillSignTool = FillSignTool.NONE,
     activeCommentTool: CommentTool = CommentTool.NONE,
+    onBackgroundTap: () -> Unit = {},
     onFillSignTap: (Offset) -> Unit = {},
     onCommentTap: (Offset) -> Unit = {},
     stamps: List<PageStamp> = emptyList(),
@@ -90,6 +90,7 @@ fun PdfPageView(
 
     var scale by remember(pageIndex) { mutableFloatStateOf(1f) }
     var offset by remember(pageIndex) { mutableStateOf(Offset.Zero) }
+    var selectedStampId by remember { mutableStateOf<String?>(null) }
 
     // Freehand drawing strokes for markup
     val drawingStrokes = remember { mutableStateListOf<StrokePath>() }
@@ -136,6 +137,9 @@ fun PdfPageView(
                             onFillSignTap(tapOffset)
                         } else if (activeCommentTool == CommentTool.STICKY_NOTE) {
                             onCommentTap(tapOffset)
+                        } else {
+                            selectedStampId = null
+                            onBackgroundTap()
                         }
                     }
                 )
@@ -222,11 +226,33 @@ fun PdfPageView(
                     }
                 }
 
-                // Render Stamped Items (Checkmarks, Crosses, Dates, Signatures)
+                // Render Stamped Items (Checkmarks, Crosses, Dates, Signatures) with drag & delete handle
                 for (stamp in stamps) {
+                    var stampX by remember(stamp.id) { mutableFloatStateOf(stamp.x) }
+                    var stampY by remember(stamp.id) { mutableFloatStateOf(stamp.y) }
+                    val isStampSelected = selectedStampId == stamp.id
+
                     Box(
                         modifier = Modifier
-                            .offset { IntOffset(stamp.x.toInt(), stamp.y.toInt()) }
+                            .offset { IntOffset(stampX.toInt(), stampY.toInt()) }
+                            .pointerInput(stamp.id) {
+                                detectDragGestures(
+                                    onDragStart = { selectedStampId = stamp.id },
+                                    onDrag = { change, dragAmount ->
+                                        change.consume()
+                                        stampX += dragAmount.x
+                                        stampY += dragAmount.y
+                                        stamp.x = stampX
+                                        stamp.y = stampY
+                                    }
+                                )
+                            }
+                            .clickable { selectedStampId = stamp.id }
+                            .border(
+                                width = if (isStampSelected) 1.5.dp else 0.dp,
+                                color = if (isStampSelected) AcrobatActionBlue else Color.Transparent,
+                                shape = RoundedCornerShape(4.dp)
+                            )
                             .padding(4.dp)
                     ) {
                         when (stamp.type) {
@@ -234,24 +260,21 @@ fun PdfPageView(
                                 Text(
                                     text = "✓",
                                     fontSize = 28.sp,
-                                    color = AcrobatActionBlue,
-                                    modifier = Modifier.clickable { onDeleteStamp(stamp.id) }
+                                    color = AcrobatActionBlue
                                 )
                             }
                             FillSignTool.CROSS -> {
                                 Text(
                                     text = "✗",
                                     fontSize = 28.sp,
-                                    color = AcrobatRed,
-                                    modifier = Modifier.clickable { onDeleteStamp(stamp.id) }
+                                    color = AcrobatRed
                                 )
                             }
                             FillSignTool.DATE -> {
                                 Surface(
                                     shape = RoundedCornerShape(4.dp),
                                     color = Color(0xEEFFFFFF),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, AcrobatActionBlue),
-                                    modifier = Modifier.clickable { onDeleteStamp(stamp.id) }
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, AcrobatActionBlue)
                                 ) {
                                     Text(
                                         text = stamp.text,
@@ -265,8 +288,7 @@ fun PdfPageView(
                                 Surface(
                                     shape = RoundedCornerShape(4.dp),
                                     color = Color(0xDDFFFFFF),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, AcrobatActionBlue),
-                                    modifier = Modifier.clickable { onDeleteStamp(stamp.id) }
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, AcrobatActionBlue)
                                 ) {
                                     Text(
                                         text = stamp.text,
@@ -278,34 +300,36 @@ fun PdfPageView(
                             }
                             FillSignTool.SIGNATURE -> {
                                 if (stamp.bitmap != null) {
-                                    Box {
-                                        Image(
-                                            bitmap = stamp.bitmap.asImageBitmap(),
-                                            contentDescription = "Signature Stamp",
-                                            modifier = Modifier
-                                                .size(120.dp, 60.dp)
-                                                .border(1.dp, Color(0x441473E6), RoundedCornerShape(4.dp))
-                                        )
-                                        Box(
-                                            modifier = Modifier
-                                                .align(Alignment.TopEnd)
-                                                .size(18.dp)
-                                                .clip(CircleShape)
-                                                .background(AcrobatRed)
-                                                .clickable { onDeleteStamp(stamp.id) },
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Close,
-                                                contentDescription = "Delete",
-                                                tint = Color.White,
-                                                modifier = Modifier.size(12.dp)
-                                            )
-                                        }
-                                    }
+                                    Image(
+                                        bitmap = stamp.bitmap.asImageBitmap(),
+                                        contentDescription = "Signature Stamp",
+                                        modifier = Modifier
+                                            .size(120.dp, 60.dp)
+                                    )
                                 }
                             }
                             else -> {}
+                        }
+
+                        // Acrobat Delete Handle (Shown when selected)
+                        if (isStampSelected) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .offset(x = 6.dp, y = (-6).dp)
+                                    .size(20.dp)
+                                    .clip(CircleShape)
+                                    .background(AcrobatRed)
+                                    .clickable { onDeleteStamp(stamp.id) },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Delete Stamp",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                            }
                         }
                     }
                 }

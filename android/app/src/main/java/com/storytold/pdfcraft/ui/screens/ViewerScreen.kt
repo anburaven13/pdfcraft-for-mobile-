@@ -4,6 +4,11 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,10 +32,13 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Redo
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FormatListNumbered
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -114,6 +122,7 @@ fun ViewerScreen(
     var singlePageIndex by remember { mutableIntStateOf(0) }
     var nightMode by remember { mutableStateOf(false) }
     var showOverflowMenu by remember { mutableStateOf(false) }
+    var areBarsVisible by remember { mutableStateOf(true) }
 
     // Lazy list state for continuous vertical scroll
     val listState = rememberLazyListState()
@@ -186,234 +195,292 @@ fun ViewerScreen(
 
     Scaffold(
         topBar = {
-            if (isSearchActive) {
-                // Acrobat In-Document Search Bar
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 4.dp
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
+            AnimatedVisibility(
+                visible = areBarsVisible || isSearchActive || activeCommentTool != CommentTool.NONE || activeFillSignTool != FillSignTool.NONE,
+                enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
+                exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut()
+            ) {
+                if (isSearchActive) {
+                    // Acrobat In-Document Search Bar
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 4.dp
                     ) {
-                        IconButton(onClick = {
-                            isSearchActive = false
-                            searchQuery = ""
-                            searchMatchPages.clear()
-                        }) {
-                            Icon(imageVector = Icons.Default.Close, contentDescription = "Close Search")
-                        }
-                        OutlinedTextField(
-                            value = searchQuery,
-                            onValueChange = {
-                                searchQuery = it
-                                executeSearch(it)
-                            },
-                            placeholder = { Text("Find in document...") },
-                            singleLine = true,
-                            modifier = Modifier.weight(1f),
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                            keyboardActions = KeyboardActions(onSearch = { executeSearch(searchQuery) }),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = Color.Transparent,
-                                unfocusedContainerColor = Color.Transparent
-                            )
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        // Match counter
-                        Text(
-                            text = if (searchMatchPages.isEmpty()) {
-                                if (searchQuery.isBlank()) "" else "0 of 0"
-                            } else {
-                                "${currentMatchIndex + 1} of ${searchMatchPages.size}"
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 4.dp)
-                        )
-                        // Previous Match Button
-                        IconButton(
-                            onClick = {
-                                if (searchMatchPages.isNotEmpty()) {
-                                    val newIdx = if (currentMatchIndex > 0) currentMatchIndex - 1 else searchMatchPages.size - 1
-                                    currentMatchIndex = newIdx
-                                    val targetPage = searchMatchPages[newIdx]
-                                    scope.launch {
-                                        if (isContinuousScroll) listState.animateScrollToItem(targetPage) else singlePageIndex = targetPage
-                                    }
-                                }
-                            },
-                            enabled = searchMatchPages.isNotEmpty()
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(imageVector = Icons.Default.KeyboardArrowUp, contentDescription = "Previous Match")
-                        }
-                        // Next Match Button
-                        IconButton(
-                            onClick = {
-                                if (searchMatchPages.isNotEmpty()) {
-                                    val newIdx = if (currentMatchIndex < searchMatchPages.size - 1) currentMatchIndex + 1 else 0
-                                    currentMatchIndex = newIdx
-                                    val targetPage = searchMatchPages[newIdx]
-                                    scope.launch {
-                                        if (isContinuousScroll) listState.animateScrollToItem(targetPage) else singlePageIndex = targetPage
-                                    }
-                                }
-                            },
-                            enabled = searchMatchPages.isNotEmpty()
-                        ) {
-                            Icon(imageVector = Icons.Default.KeyboardArrowDown, contentDescription = "Next Match")
-                        }
-                    }
-                }
-            } else {
-                // Standard Acrobat Top Bar
-                TopAppBar(
-                    title = {
-                        Column {
-                            Text(
-                                text = document.name,
-                                style = MaterialTheme.typography.titleMedium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = "Page ${activeDisplayPage + 1} of $totalPages",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                        }
-                    },
-                    actions = {
-                        // In-Document Search Trigger
-                        IconButton(onClick = { isSearchActive = true }) {
-                            Icon(imageVector = Icons.Default.Search, contentDescription = "Search")
-                        }
-                        // Toggle Continuous Scroll vs Single Page
-                        IconButton(onClick = { isContinuousScroll = !isContinuousScroll }) {
-                            Icon(
-                                imageVector = if (isContinuousScroll) Icons.Default.ViewStream else Icons.Default.ViewCarousel,
-                                contentDescription = if (isContinuousScroll) "Continuous Scroll" else "Single Page"
-                            )
-                        }
-                        // Night Mode Reading
-                        IconButton(onClick = { nightMode = !nightMode }) {
-                            Icon(
-                                imageVector = if (nightMode) Icons.Default.LightMode else Icons.Default.DarkMode,
-                                contentDescription = "Night Mode"
-                            )
-                        }
-                        // Organize Pages Shortcut
-                        IconButton(onClick = onNavigateToOrganize) {
-                            Icon(imageVector = Icons.Default.FormatListNumbered, contentDescription = "Organize")
-                        }
-                        // Share PDF
-                        IconButton(onClick = { sharePdf(context, document) }) {
-                            Icon(imageVector = Icons.Default.Share, contentDescription = "Share")
-                        }
-                        // Overflow Menu
-                        Box {
-                            IconButton(onClick = { showOverflowMenu = true }) {
-                                Icon(imageVector = Icons.Default.MoreVert, contentDescription = "More")
+                            IconButton(onClick = {
+                                isSearchActive = false
+                                searchQuery = ""
+                                searchMatchPages.clear()
+                            }) {
+                                Icon(imageVector = Icons.Default.Close, contentDescription = "Close Search")
                             }
-                            DropdownMenu(
-                                expanded = showOverflowMenu,
-                                onDismissRequest = { showOverflowMenu = false }
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text("Extract All Page Text") },
-                                    leadingIcon = { Icon(Icons.Default.TextFields, contentDescription = null) },
-                                    onClick = {
-                                        showOverflowMenu = false
+                            OutlinedTextField(
+                                value = searchQuery,
+                                onValueChange = {
+                                    searchQuery = it
+                                    executeSearch(it)
+                                },
+                                placeholder = { Text("Find in document...") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f),
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                                keyboardActions = KeyboardActions(onSearch = { executeSearch(searchQuery) }),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedContainerColor = Color.Transparent,
+                                    unfocusedContainerColor = Color.Transparent
+                                )
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            // Match counter
+                            Text(
+                                text = if (searchMatchPages.isEmpty()) {
+                                    if (searchQuery.isBlank()) "" else "0 of 0"
+                                } else {
+                                    "${currentMatchIndex + 1} of ${searchMatchPages.size}"
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 4.dp)
+                            )
+                            // Previous Match Button
+                            IconButton(
+                                onClick = {
+                                    if (searchMatchPages.isNotEmpty()) {
+                                        val newIdx = if (currentMatchIndex > 0) currentMatchIndex - 1 else searchMatchPages.size - 1
+                                        currentMatchIndex = newIdx
+                                        val targetPage = searchMatchPages[newIdx]
                                         scope.launch {
-                                            extractedTextContent = document.getPageText(activeDisplayPage)
-                                            showExtractedTextDialog = true
+                                            if (isContinuousScroll) listState.animateScrollToItem(targetPage) else singlePageIndex = targetPage
                                         }
                                     }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Document Info") },
-                                    leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
-                                    onClick = {
-                                        showOverflowMenu = false
-                                        val dims = document.getPageDimensions(activeDisplayPage)
-                                        Toast.makeText(
-                                            context,
-                                            "Document: ${document.name}\nPages: $totalPages\nCurrent Size: ${dims.first.toInt()} x ${dims.second.toInt()} pt",
-                                            Toast.LENGTH_LONG
-                                        ).show()
+                                },
+                                enabled = searchMatchPages.isNotEmpty()
+                            ) {
+                                Icon(imageVector = Icons.Default.KeyboardArrowUp, contentDescription = "Previous Match")
+                            }
+                            // Next Match Button
+                            IconButton(
+                                onClick = {
+                                    if (searchMatchPages.isNotEmpty()) {
+                                        val newIdx = if (currentMatchIndex < searchMatchPages.size - 1) currentMatchIndex + 1 else 0
+                                        currentMatchIndex = newIdx
+                                        val targetPage = searchMatchPages[newIdx]
+                                        scope.launch {
+                                            if (isContinuousScroll) listState.animateScrollToItem(targetPage) else singlePageIndex = targetPage
+                                        }
                                     }
-                                )
+                                },
+                                enabled = searchMatchPages.isNotEmpty()
+                            ) {
+                                Icon(imageVector = Icons.Default.KeyboardArrowDown, contentDescription = "Next Match")
                             }
                         }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface
+                    }
+                } else if (activeCommentTool != CommentTool.NONE) {
+                    // Acrobat Comment Mode Top Bar
+                    TopAppBar(
+                        title = { Text("Comment", fontWeight = FontWeight.Bold) },
+                        navigationIcon = {
+                            TextButton(onClick = { activeCommentTool = CommentTool.NONE }) {
+                                Text("Done", color = AcrobatActionBlue, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            }
+                        },
+                        actions = {
+                            IconButton(onClick = {
+                                if (pageNotes.isNotEmpty()) pageNotes.removeLastOrNull()
+                            }) {
+                                Icon(imageVector = Icons.AutoMirrored.Filled.Undo, contentDescription = "Undo")
+                            }
+                            IconButton(onClick = {
+                                pageNotes.clear()
+                            }) {
+                                Icon(imageVector = Icons.Default.Delete, contentDescription = "Clear Comments")
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
                     )
-                )
+                } else if (activeFillSignTool != FillSignTool.NONE) {
+                    // Acrobat Fill & Sign Mode Top Bar
+                    TopAppBar(
+                        title = { Text("Fill & Sign", fontWeight = FontWeight.Bold) },
+                        navigationIcon = {
+                            TextButton(onClick = { activeFillSignTool = FillSignTool.NONE }) {
+                                Text("Done", color = AcrobatActionBlue, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            }
+                        },
+                        actions = {
+                            IconButton(onClick = {
+                                if (pageStamps.isNotEmpty()) pageStamps.removeLastOrNull()
+                            }) {
+                                Icon(imageVector = Icons.AutoMirrored.Filled.Undo, contentDescription = "Undo")
+                            }
+                            IconButton(onClick = {
+                                pageStamps.clear()
+                            }) {
+                                Icon(imageVector = Icons.Default.Delete, contentDescription = "Clear Stamps")
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
+                    )
+                } else {
+                    // Standard Acrobat Top Bar
+                    TopAppBar(
+                        title = {
+                            Column {
+                                Text(
+                                    text = document.name,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = "Page ${activeDisplayPage + 1} of $totalPages",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = AcrobatActionBlue,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        },
+                        navigationIcon = {
+                            IconButton(onClick = onBack) {
+                                Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                            }
+                        },
+                        actions = {
+                            // In-Document Search Trigger
+                            IconButton(onClick = { isSearchActive = true }) {
+                                Icon(imageVector = Icons.Default.Search, contentDescription = "Search")
+                            }
+                            // Toggle Continuous Scroll vs Single Page
+                            IconButton(onClick = { isContinuousScroll = !isContinuousScroll }) {
+                                Icon(
+                                    imageVector = if (isContinuousScroll) Icons.Default.ViewStream else Icons.Default.ViewCarousel,
+                                    contentDescription = if (isContinuousScroll) "Continuous Scroll" else "Single Page"
+                                )
+                            }
+                            // Night Mode Reading
+                            IconButton(onClick = { nightMode = !nightMode }) {
+                                Icon(
+                                    imageVector = if (nightMode) Icons.Default.LightMode else Icons.Default.DarkMode,
+                                    contentDescription = "Night Mode"
+                                )
+                            }
+                            // Organize Pages Shortcut
+                            IconButton(onClick = onNavigateToOrganize) {
+                                Icon(imageVector = Icons.Default.FormatListNumbered, contentDescription = "Organize")
+                            }
+                            // Share PDF
+                            IconButton(onClick = { sharePdf(context, document) }) {
+                                Icon(imageVector = Icons.Default.Share, contentDescription = "Share")
+                            }
+                            // Overflow Menu
+                            Box {
+                                IconButton(onClick = { showOverflowMenu = true }) {
+                                    Icon(imageVector = Icons.Default.MoreVert, contentDescription = "More")
+                                }
+                                DropdownMenu(
+                                    expanded = showOverflowMenu,
+                                    onDismissRequest = { showOverflowMenu = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Extract All Page Text") },
+                                        leadingIcon = { Icon(Icons.Default.TextFields, contentDescription = null) },
+                                        onClick = {
+                                            showOverflowMenu = false
+                                            scope.launch {
+                                                extractedTextContent = document.getPageText(activeDisplayPage)
+                                                showExtractedTextDialog = true
+                                            }
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Document Info") },
+                                        leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
+                                        onClick = {
+                                            showOverflowMenu = false
+                                            val dims = document.getPageDimensions(activeDisplayPage)
+                                            Toast.makeText(
+                                                context,
+                                                "Document: ${document.name}\nPages: $totalPages\nCurrent Size: ${dims.first.toInt()} x ${dims.second.toInt()} pt",
+                                                Toast.LENGTH_LONG
+                                            ).show()
+                                        }
+                                    )
+                                }
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        )
+                    )
+                }
             }
         },
         bottomBar = {
-            if (activeFillSignTool != FillSignTool.NONE) {
-                AcrobatFillSignBar(
-                    activeTool = activeFillSignTool,
-                    onSelectTool = { tool ->
-                        activeFillSignTool = tool
-                        if (tool == FillSignTool.SIGNATURE && pendingSignatureBitmap == null) {
-                            showSignatureDialog = true
+            AnimatedVisibility(
+                visible = areBarsVisible || activeCommentTool != CommentTool.NONE || activeFillSignTool != FillSignTool.NONE,
+                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+            ) {
+                if (activeFillSignTool != FillSignTool.NONE) {
+                    AcrobatFillSignBar(
+                        activeTool = activeFillSignTool,
+                        onSelectTool = { tool ->
+                            activeFillSignTool = tool
+                            if (tool == FillSignTool.SIGNATURE && pendingSignatureBitmap == null) {
+                                showSignatureDialog = true
+                            }
+                        },
+                        onDone = {
+                            activeFillSignTool = FillSignTool.NONE
+                            Toast.makeText(context, "Annotations saved", Toast.LENGTH_SHORT).show()
                         }
-                    },
-                    onDone = {
-                        activeFillSignTool = FillSignTool.NONE
-                        Toast.makeText(context, "Annotations saved", Toast.LENGTH_SHORT).show()
-                    }
-                )
-            } else if (activeCommentTool != CommentTool.NONE) {
-                AcrobatCommentBar(
-                    activeTool = activeCommentTool,
-                    onSelectTool = { tool -> activeCommentTool = tool },
-                    onDone = {
-                        activeCommentTool = CommentTool.NONE
-                        Toast.makeText(context, "Comments saved", Toast.LENGTH_SHORT).show()
-                    }
-                )
-            } else if (!isContinuousScroll) {
-                // Single Page Navigation Bar
-                Surface(
-                    tonalElevation = 3.dp,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    )
+                } else if (activeCommentTool != CommentTool.NONE) {
+                    AcrobatCommentBar(
+                        activeTool = activeCommentTool,
+                        onSelectTool = { tool -> activeCommentTool = tool },
+                        onDone = {
+                            activeCommentTool = CommentTool.NONE
+                            Toast.makeText(context, "Comments saved", Toast.LENGTH_SHORT).show()
+                        }
+                    )
+                } else if (!isContinuousScroll) {
+                    // Single Page Navigation Bar
+                    Surface(
+                        tonalElevation = 3.dp,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        IconButton(
-                            onClick = { if (singlePageIndex > 0) singlePageIndex-- },
-                            enabled = singlePageIndex > 0
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(imageVector = Icons.Default.ChevronLeft, contentDescription = "Previous")
-                        }
-                        Text(
-                            text = "${singlePageIndex + 1} / $totalPages",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        IconButton(
-                            onClick = { if (singlePageIndex < totalPages - 1) singlePageIndex++ },
-                            enabled = singlePageIndex < totalPages - 1
-                        ) {
-                            Icon(imageVector = Icons.Default.ChevronRight, contentDescription = "Next")
+                            IconButton(
+                                onClick = { if (singlePageIndex > 0) singlePageIndex-- },
+                                enabled = singlePageIndex > 0
+                            ) {
+                                Icon(imageVector = Icons.Default.ChevronLeft, contentDescription = "Previous")
+                            }
+                            Text(
+                                text = "${singlePageIndex + 1} / $totalPages",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            IconButton(
+                                onClick = { if (singlePageIndex < totalPages - 1) singlePageIndex++ },
+                                enabled = singlePageIndex < totalPages - 1
+                            ) {
+                                Icon(imageVector = Icons.Default.ChevronRight, contentDescription = "Next")
+                            }
                         }
                     }
                 }
@@ -448,6 +515,11 @@ fun ViewerScreen(
                                 nightMode = nightMode,
                                 activeFillSignTool = activeFillSignTool,
                                 activeCommentTool = activeCommentTool,
+                                onBackgroundTap = {
+                                    if (activeFillSignTool == FillSignTool.NONE && activeCommentTool == CommentTool.NONE) {
+                                        areBarsVisible = !areBarsVisible
+                                    }
+                                },
                                 onFillSignTap = { offset ->
                                     handleFillSignTap(
                                         tool = activeFillSignTool,
@@ -481,6 +553,11 @@ fun ViewerScreen(
                     nightMode = nightMode,
                     activeFillSignTool = activeFillSignTool,
                     activeCommentTool = activeCommentTool,
+                    onBackgroundTap = {
+                        if (activeFillSignTool == FillSignTool.NONE && activeCommentTool == CommentTool.NONE) {
+                            areBarsVisible = !areBarsVisible
+                        }
+                    },
                     onFillSignTap = { offset ->
                         handleFillSignTap(
                             tool = activeFillSignTool,
@@ -517,26 +594,32 @@ fun ViewerScreen(
 
             // Acrobat Speed Dial Floating Action Button
             if (activeFillSignTool == FillSignTool.NONE && activeCommentTool == CommentTool.NONE) {
-                AcrobatSpeedDial(
-                    isExpanded = isSpeedDialExpanded,
-                    onToggleExpand = { isSpeedDialExpanded = !isSpeedDialExpanded },
-                    onFillAndSign = {
-                        activeFillSignTool = FillSignTool.TEXT
-                    },
-                    onComment = {
-                        activeCommentTool = CommentTool.HIGHLIGHT
-                    },
-                    onOrganize = onNavigateToOrganize,
-                    onExtractText = {
-                        scope.launch {
-                            extractedTextContent = document.getPageText(activeDisplayPage)
-                            showExtractedTextDialog = true
-                        }
-                    },
+                AnimatedVisibility(
+                    visible = areBarsVisible,
+                    enter = fadeIn(),
+                    exit = fadeOut(),
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(bottom = 24.dp, end = 20.dp)
-                )
+                ) {
+                    AcrobatSpeedDial(
+                        isExpanded = isSpeedDialExpanded,
+                        onToggleExpand = { isSpeedDialExpanded = !isSpeedDialExpanded },
+                        onFillAndSign = {
+                            activeFillSignTool = FillSignTool.TEXT
+                        },
+                        onComment = {
+                            activeCommentTool = CommentTool.HIGHLIGHT
+                        },
+                        onOrganize = onNavigateToOrganize,
+                        onExtractText = {
+                            scope.launch {
+                                extractedTextContent = document.getPageText(activeDisplayPage)
+                                showExtractedTextDialog = true
+                            }
+                        }
+                    )
+                }
             }
         }
     }
@@ -670,10 +753,10 @@ private fun handleFillSignTap(
 ) {
     when (tool) {
         FillSignTool.CHECKMARK -> {
-            onAddStamp(PageStamp(type = FillSignTool.CHECKMARK, x = offset.x - 20, y = offset.y - 20))
+            onAddStamp(PageStamp(type = FillSignTool.CHECKMARK, x = offset.x - 20f, y = offset.y - 20f))
         }
         FillSignTool.CROSS -> {
-            onAddStamp(PageStamp(type = FillSignTool.CROSS, x = offset.x - 20, y = offset.y - 20))
+            onAddStamp(PageStamp(type = FillSignTool.CROSS, x = offset.x - 20f, y = offset.y - 20f))
         }
         FillSignTool.DATE -> {
             val dateStr = SimpleDateFormat("MM/dd/yyyy", Locale.getDefault()).format(Date())
@@ -684,7 +767,7 @@ private fun handleFillSignTap(
         }
         FillSignTool.SIGNATURE -> {
             if (pendingSignature != null) {
-                onAddStamp(PageStamp(type = FillSignTool.SIGNATURE, x = offset.x - 60, y = offset.y - 30, bitmap = pendingSignature))
+                onAddStamp(PageStamp(type = FillSignTool.SIGNATURE, x = offset.x - 60f, y = offset.y - 30f, bitmap = pendingSignature))
             } else {
                 onOpenSignatureDialog()
             }

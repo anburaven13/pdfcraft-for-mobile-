@@ -190,11 +190,11 @@ fun HomeScreen(
                             )
                         },
                         colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = AcrobatRed,
-                            selectedTextColor = AcrobatRed,
-                            indicatorColor = Color(0xFFFFEBEE),
-                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            selectedIconColor = AcrobatActionBlue,
+                            selectedTextColor = AcrobatActionBlue,
+                            indicatorColor = Color(0xFFE8F0FE),
+                            unselectedIconColor = Color(0xFF757575),
+                            unselectedTextColor = Color(0xFF757575)
                         )
                     )
                 }
@@ -309,14 +309,14 @@ private fun HomeScreenContent(
         TabRow(
             selectedTabIndex = selectedFilter,
             containerColor = MaterialTheme.colorScheme.surface,
-            contentColor = AcrobatRed,
+            contentColor = AcrobatActionBlue,
             indicator = { tabPositions ->
                 if (selectedFilter < tabPositions.size) {
                     Box(
                         modifier = Modifier
                             .tabIndicatorOffset(tabPositions[selectedFilter])
                             .height(3.dp)
-                            .background(AcrobatRed)
+                            .background(AcrobatActionBlue)
                     )
                 }
             }
@@ -324,10 +324,18 @@ private fun HomeScreenContent(
             Tab(
                 selected = selectedFilter == 0,
                 onClick = { onFilterChanged(0) },
+                selectedContentColor = AcrobatActionBlue,
+                unselectedContentColor = Color(0xFF757575),
                 text = { Text("Recent", fontWeight = FontWeight.SemiBold) }
             )
             Tab(
                 selected = selectedFilter == 1,
+                onClick = { onFilterChanged(1) },
+                selectedContentColor = AcrobatActionBlue,
+                unselectedContentColor = Color(0xFF757575),
+                text = { Text("Starred", fontWeight = FontWeight.SemiBold) }
+            )
+        }
                 onClick = { onFilterChanged(1) },
                 text = { Text("Starred", fontWeight = FontWeight.SemiBold) }
             )
