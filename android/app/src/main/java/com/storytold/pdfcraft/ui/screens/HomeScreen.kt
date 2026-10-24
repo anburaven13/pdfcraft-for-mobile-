@@ -336,10 +336,6 @@ private fun HomeScreenContent(
                 text = { Text("Starred", fontWeight = FontWeight.SemiBold) }
             )
         }
-                onClick = { onFilterChanged(1) },
-                text = { Text("Starred", fontWeight = FontWeight.SemiBold) }
-            )
-        }
 
         if (filteredList.isEmpty()) {
             Box(
